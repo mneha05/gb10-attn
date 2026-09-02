@@ -8,9 +8,12 @@ All numbers below were produced on Purdue RCAC `rowdy`, partition `gb10`, node
 
 ## Headline
 
-**The v3 context-split (FlashDecoding) kernel sustains 76–81% of GB10's
-273 GB/s memory bandwidth**, 9–17× PyTorch SDPA on the same paged layout.
-Peak observed: 221.8 GB/s (81.2% of peak) at a 201 MB working set.
+**The v3 context-split (FlashDecoding) kernel sustains 82–85% of GB10's
+273 GB/s memory bandwidth** at large working sets, ~14–16× PyTorch SDPA on the
+same paged layout. Peak observed: **231.3 GB/s (84.7%)** at batch=64,
+ctx=2048 — a shape that crashed before the int32 fix below.
+
+Full writeup: [docs/REPORT.md](docs/REPORT.md).
 
 That number is lower than the first run reported, and the difference is the
 interesting part.
@@ -86,7 +89,9 @@ Predicted vs observed across a 20-point sweep: **20/20, no mismatches.**
 Mechanism: `pool[layer, 0]` for a late layer sits at a storage offset beyond 2³¹
 *elements* (layer 11 begins 2.28 G elements in), so any int32 offset arithmetic
 wraps. Reproducer: [harness/repro_crash.py](harness/repro_crash.py) (`--bisect`).
-Not yet fixed — the fix is to allocate per-layer tensors rather than one pool.
+**Fixed** by allocating one tensor per layer; re-running the same 20-point
+sweep afterwards, none faulted. New ceiling: 87,381 blocks per layer, 12.0×
+the old limit — exactly the factor `n_layer` predicts.
 
 ## SM121 vs SM120 dispatch
 
