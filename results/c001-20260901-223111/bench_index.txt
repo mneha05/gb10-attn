@@ -1,0 +1,10 @@
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b1_c512.txt
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b1_c2048.txt
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b4_c512.txt
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b4_c2048.txt
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b16_c512.txt
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b16_c2048.txt
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b64_c512.txt
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b64_c2048.txt
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b128_c512.txt
+/home/mahesh54/gb10-attn/results/c001-20260901-223111/bench_b128_c2048.txt

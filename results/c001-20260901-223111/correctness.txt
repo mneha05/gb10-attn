@@ -1,0 +1,30 @@
+==========================================================================
+device : NVIDIA GB10  (132.9 GB, 48 SMs, sm_121)
+peak BW: 546 GB/s
+[1/3] c++ -MMD -MF main.o.d -DTORCH_EXTENSION_NAME=heteroserve_paged_attn -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -fPIC -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_paged_attn/main.cpp -o main.o 
+[2/3] /usr/local/cuda-13.2/bin/nvcc -MD -MF cuda.cuda.o.d -DTORCH_EXTENSION_NAME=heteroserve_paged_attn -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_120,code=sm_120 -gencode=arch=compute_121,code=sm_121 --compiler-options '-fPIC' -O3 --use_fast_math -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_paged_attn/cuda.cu -o cuda.cuda.o 
+[3/3] c++ main.o cuda.cuda.o -shared -L/home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/lib -lc10 -lc10_cuda -ltorch_cpu -ltorch_cuda -ltorch -ltorch_python -L/usr/local/cuda-13.2/lib64 -lcudart -o heteroserve_paged_attn.so
+v1 kernel: cuda
+[1/3] c++ -MMD -MF main.o.d -DTORCH_EXTENSION_NAME=heteroserve_paged_attn_v2 -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -fPIC -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_paged_attn_v2/main.cpp -o main.o 
+[2/3] /usr/local/cuda-13.2/bin/nvcc -MD -MF cuda.cuda.o.d -DTORCH_EXTENSION_NAME=heteroserve_paged_attn_v2 -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_120,code=sm_120 -gencode=arch=compute_121,code=sm_121 --compiler-options '-fPIC' -O3 --use_fast_math -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_paged_attn_v2/cuda.cu -o cuda.cuda.o 
+[3/3] c++ main.o cuda.cuda.o -shared -L/home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/lib -lc10 -lc10_cuda -ltorch_cpu -ltorch_cuda -ltorch -ltorch_python -L/usr/local/cuda-13.2/lib64 -lcudart -o heteroserve_paged_attn_v2.so
+v2 kernel: ready
+[1/3] c++ -MMD -MF main.o.d -DTORCH_EXTENSION_NAME=heteroserve_paged_attn_v3 -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -fPIC -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_paged_attn_v3/main.cpp -o main.o 
+[2/3] /usr/local/cuda-13.2/bin/nvcc -MD -MF cuda.cuda.o.d -DTORCH_EXTENSION_NAME=heteroserve_paged_attn_v3 -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_120,code=sm_120 -gencode=arch=compute_121,code=sm_121 --compiler-options '-fPIC' -O3 --use_fast_math -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_paged_attn_v3/cuda.cu -o cuda.cuda.o 
+[3/3] c++ main.o cuda.cuda.o -shared -L/home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/lib -lc10 -lc10_cuda -ltorch_cpu -ltorch_cuda -ltorch -ltorch_python -L/usr/local/cuda-13.2/lib64 -lcudart -o heteroserve_paged_attn_v3.so
+v3 kernel: ready
+==========================================================================
+
+model=gpt2  batch=2  context=64  dtype=float16  one layer
+minimum traffic per call: 0.4 MB (K and V, read once each)
+
+path                               per call  speedup     GB/s  % peak   correctness
+-----------------------------------------------------------------------------------
+gather + dense attention           1681.3us    1.00x     0.2    0.0%   ok (0.0e+00)
+gather + PyTorch SDPA              1266.9us    1.33x     0.3    0.1%   ok (4.8e-07)
+v1 kernel (naive fused)              52.1us   32.26x     7.5    1.4%   ok (4.2e-07)
+v2 kernel (online softmax)           49.4us   34.02x     8.0    1.5%   ok (4.2e-07)
+v3 kernel (16-way split)             71.2us   23.60x     5.5    1.0%   ok (3.8e-07)
+
+Attention decode is bandwidth bound, so '% peak' is the number that
+matters -- a kernel at 80% of peak has almost nothing left to win.

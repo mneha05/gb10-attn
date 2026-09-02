@@ -1,0 +1,31 @@
+==========================================================================
+device : NVIDIA GB10  (132.9 GB, 48 SMs, sm_121)
+peak BW: 546 GB/s
+ninja: no work to do.
+v1 kernel: cuda
+ninja: no work to do.
+v2 kernel: ready
+ninja: no work to do.
+v3 kernel: ready
+==========================================================================
+Traceback (most recent call last):
+  File "/home/mahesh54/hetero-serve/scripts/bench_kernel.py", line 304, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/mahesh54/hetero-serve/scripts/bench_kernel.py", line 119, in main
+    alloc.write_kv(a.block_ids, 0, k, k)
+  File "/home/mahesh54/hetero-serve/heteroserve/kv/torch_blocks.py", line 92, in write_kv
+    k = self._as_tensor(k)
+        ^^^^^^^^^^^^^^^^^^
+  File "/home/mahesh54/hetero-serve/heteroserve/kv/torch_blocks.py", line 55, in _as_tensor
+    return self.torch.as_tensor(
+           ^^^^^^^^^^^^^^^^^^^^^
+torch.AcceleratorError: CUDA error: an illegal memory access was encountered
+Search for `cudaErrorIllegalAddress' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+The CUDA driver logged these messages, which may provide useful details:
+Sticky error detected
+Returning 700 (CUDA_ERROR_ILLEGAL_ADDRESS) from cuStreamIsCapturing
+
+

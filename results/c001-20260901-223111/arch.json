@@ -1,0 +1,31 @@
+{
+  "host": "c001.rowdy.rcac.purdue.edu",
+  "machine": "aarch64",
+  "platform": "Linux-7.0.11-aarch64-with-glibc2.34",
+  "python": "3.12.14",
+  "nvidia_smi": "NVIDIA GB10, 12.1, [N/A], 595.58.03",
+  "nvcc": "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2026 NVIDIA Corporation\nBuilt on Thu_Mar_19_11:11:41_PM_PDT_2026\nCuda compilation tools, release 13.2, V13.2.78\nBuild cuda_13.2.r13.2/compiler.37668154_0",
+  "torch": {
+    "available": true,
+    "torch_version": "2.14.0+cu130",
+    "cuda_runtime": "13.0",
+    "cuda_available": true,
+    "compiled_arch_list": [
+      "sm_80",
+      "sm_90",
+      "sm_100",
+      "sm_110",
+      "sm_120"
+    ],
+    "TORCH_CUDA_ARCH_LIST": "12.0;12.1",
+    "device_name": "NVIDIA GB10",
+    "capability": "12.1",
+    "sm_arch_int": 121,
+    "trtllm_would_report": 120,
+    "multi_processor_count": 48,
+    "total_memory_GiB": 123.76,
+    "memory_clock_rate": 8533000,
+    "memory_bus_width": 256,
+    "derived_peak_GBs": 546.1
+  }
+}

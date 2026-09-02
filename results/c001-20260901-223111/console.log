@@ -1,0 +1,80 @@
+
+[1m== preflight[0m  (t+0s)
+NVIDIA GB10, 12.1, [N/A], 595.58.03
+uname -m: aarch64
+compute capability (packed): 121
+TORCH_CUDA_ARCH_LIST=12.0;12.1
+commit_gb10attn=8c8403b
+commit_heteroserve=1df4804
+slurm_job=444  node=c001  stamp=20260901-223111
+
+[1m== probe: what arch does each layer report[0m  (t+0s)
+
+GB10 confirmed: real SM 12.1.
+  torch/nvcc target : sm_121
+  TRT-LLM getSMVersion() reports : 120  (deliberate mask)
+  -> any custom op built against TRT-LLM's reported SM will be
+     compiled and dispatched as sm_120. Build ours for BOTH.
+    "trtllm_would_report": 120,
+    "multi_processor_count": 48,
+    "total_memory_GiB": 123.76,
+    "memory_clock_rate": 8533000,
+    "memory_bus_width": 256,
+    "derived_peak_GBs": 546.1
+  }
+}
+
+[1m== correctness (small shape, first compile happens here)[0m  (t+5s)
+
+[1m== bench sweep[0m  (t+218s)
+  decode b=1 c=512
+  decode b=1 c=2048
+  decode b=4 c=512
+  decode b=4 c=2048
+  decode b=16 c=512
+  decode b=16 c=2048
+  decode b=64 c=512
+  decode b=64 c=2048
+[33mwarn:[0m bench b=64 c=2048 failed
+  decode b=128 c=512
+  decode b=128 c=2048
+[33mwarn:[0m bench b=128 c=2048 failed
+
+[1m== bench prefill (compute-bound contrast)[0m  (t+281s)
+
+[1m== nsight compute (roofline counters)[0m  (t+421s)
+[33mwarn:[0m ncu failed -- see ncu.err (profiling may need --allow-legacy or perf counter perms)
+tr: warning: an unescaped backslash at end of string is not portable
+Traceback (most recent call last):
+  File "/home/mahesh54/hetero-serve/scripts/bench_kernel.py", line 304, in <module>
+
+[1m== done[0m  (t+427s)
+budget used: 427s of 1500s
+artifacts:
+total 43
+drwxr-xr-x 2 mahesh54 student   22 Sep  1 22:38 .
+drwxr-xr-x 3 mahesh54 student    3 Sep  1 22:31 ..
+-rw-r--r-- 1 mahesh54 student  987 Sep  1 22:31 arch.json
+-rw-r--r-- 1 mahesh54 student 1482 Sep  1 22:35 bench_b128_c2048.txt
+-rw-r--r-- 1 mahesh54 student 1181 Sep  1 22:35 bench_b128_c512.txt
+-rw-r--r-- 1 mahesh54 student 1181 Sep  1 22:35 bench_b16_c2048.txt
+-rw-r--r-- 1 mahesh54 student 1179 Sep  1 22:35 bench_b16_c512.txt
+-rw-r--r-- 1 mahesh54 student 1178 Sep  1 22:34 bench_b1_c2048.txt
+-rw-r--r-- 1 mahesh54 student 1177 Sep  1 22:34 bench_b1_c512.txt
+-rw-r--r-- 1 mahesh54 student 1179 Sep  1 22:35 bench_b4_c2048.txt
+-rw-r--r-- 1 mahesh54 student 1177 Sep  1 22:35 bench_b4_c512.txt
+-rw-r--r-- 1 mahesh54 student 1482 Sep  1 22:35 bench_b64_c2048.txt
+-rw-r--r-- 1 mahesh54 student 1180 Sep  1 22:35 bench_b64_c512.txt
+-rw-r--r-- 1 mahesh54 student  733 Sep  1 22:35 bench_index.txt
+-rw-r--r-- 1 mahesh54 student 5267 Sep  1 22:38 bench_prefill.txt
+-rw-r--r-- 1 mahesh54 student 1607 Sep  1 22:38 console.log
+-rw-r--r-- 1 mahesh54 student 5907 Sep  1 22:34 correctness.txt
+-rw-r--r-- 1 mahesh54 student   36 Sep  1 22:31 gpu.txt
+-rw-r--r-- 1 mahesh54 student  769 Sep  1 22:38 ncu_b64_c2048.csv
+-rw-r--r-- 1 mahesh54 student 1218 Sep  1 22:38 ncu.err
+-rw-r--r-- 1 mahesh54 student   99 Sep  1 22:31 provenance.txt
+-rw-r--r-- 1 mahesh54 student   18 Sep  1 22:31 uname.txt
+
+copy back with:
+  scp -r <user>@rowdy.rcac.purdue.edu:/home/mahesh54/gb10-attn/results/c001-20260901-223111 ./results/
+You can release the allocation now (exit).

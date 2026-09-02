@@ -62,15 +62,50 @@ def probe_torch() -> dict:
             "total_memory_GiB": round(props.total_memory / 2**30, 2),
         })
         # GB10 is unified LPDDR5X: the "GPU memory" is the system's 128 GB, and
-        # there is no PCIe hop for H2D. Record both so the roofline denominator
-        # is not guessed later.
+        # there is no PCIe hop for H2D. Record the raw attributes so the
+        # roofline denominator is never guessed later.
         for attr in ("memory_clock_rate", "memory_bus_width", "l2_cache_size"):
             if hasattr(props, attr):
                 d[attr] = getattr(props, attr)
-        if d.get("memory_clock_rate") and d.get("memory_bus_width"):
-            # kHz * bits -> GB/s, DDR (x2)
-            gbs = d["memory_clock_rate"] * 1e3 * 2 * d["memory_bus_width"] / 8 / 1e9
-            d["derived_peak_GBs"] = round(gbs, 1)
+
+        # torch does not always expose l2_cache_size; ask the driver directly.
+        # L2 matters as much as peak bandwidth here: if a benchmark's working
+        # set fits in L2, its "GB/s" is a cache number, not a DRAM number.
+        if not d.get("l2_cache_size"):
+            try:
+                from cuda import cudart
+                err, v = cudart.cudaDeviceGetAttribute(
+                    cudart.cudaDeviceAttr.cudaDevAttrL2CacheSize, 0)
+                if int(err) == 0 and v:
+                    d["l2_cache_size"] = int(v)
+                    d["l2_cache_source"] = "cudaDeviceGetAttribute"
+            except Exception as exc:
+                d["l2_cache_error"] = str(exc)
+        if d.get("l2_cache_size"):
+            d["l2_cache_MiB"] = round(d["l2_cache_size"] / 2**20, 2)
+
+        # Peak bandwidth: do NOT unconditionally double.
+        #
+        # cudaDevAttrMemoryClockRate carries different meanings per memory
+        # technology. T4/GDDR6 reports a clock that still needs the DDR x2
+        # (5001 MHz x 2 x 256/8 = 320 GB/s, the spec). GB10/LPDDR5X reports the
+        # effective transfer rate already (8533 MT/s x 256/8 = 273 GB/s, the
+        # spec); doubling invents a 546 GB/s bus that does not exist and halves
+        # every "% of peak" downstream. Prefer the published figure.
+        KNOWN_PEAK_GBS = {"NVIDIA GB10": 273.0, "Tesla T4": 320.0}
+        clk, bus = d.get("memory_clock_rate"), d.get("memory_bus_width")
+        if clk and bus:
+            d["peak_GBs_no_double"] = round(clk * 1e3 * bus / 8 / 1e9, 1)
+            d["peak_GBs_doubled"] = round(clk * 1e3 * 2 * bus / 8 / 1e9, 1)
+        known = KNOWN_PEAK_GBS.get(d.get("device_name", ""))
+        if known:
+            d["peak_GBs"] = known
+            d["peak_GBs_source"] = "vendor spec"
+        elif clk and bus:
+            d["peak_GBs"] = d["peak_GBs_doubled"]
+            d["peak_GBs_source"] = ("derived, clock x2 -- UNVERIFIED; if this is "
+                                    "2x the spec sheet the part reports an "
+                                    "effective rate and needs a table entry")
     return d
 
 

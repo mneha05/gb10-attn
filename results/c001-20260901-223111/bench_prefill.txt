@@ -1,0 +1,47 @@
+==========================================================================
+device : NVIDIA GB10  (132.9 GB, 48 SMs, sm_121)
+peak BW: 546 GB/s
+ninja: no work to do.
+v1 kernel: cuda
+ninja: no work to do.
+v2 kernel: ready
+ninja: no work to do.
+v3 kernel: ready
+==========================================================================
+
+model=gpt2  batch=4  context=2048  dtype=float16  one layer
+minimum traffic per call: 25.2 MB (K and V, read once each)
+
+path                               per call  speedup     GB/s  % peak   correctness
+-----------------------------------------------------------------------------------
+gather + dense attention           1593.0us    1.00x    15.8    2.9%   ok (0.0e+00)
+gather + PyTorch SDPA              1057.0us    1.51x    23.8    4.4%   ok (2.7e-07)
+v1 kernel (naive fused)             462.3us    3.45x    54.4   10.0%   ok (5.1e-07)
+v2 kernel (online softmax)          940.0us    1.69x    26.8    4.9%   ok (1.1e-06)
+v3 kernel (64-way split)             55.7us   28.60x   451.7   82.7%   ok (1.8e-07)
+
+Attention decode is bandwidth bound, so '% peak' is the number that
+matters -- a kernel at 80% of peak has almost nothing left to win.
+
+==========================================================================
+PREFILL  batch=4  chunk=512 query tokens  context=2048
+[1/3] c++ -MMD -MF main.o.d -DTORCH_EXTENSION_NAME=heteroserve_paged_attn_prefill -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -fPIC -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_paged_attn_prefill/main.cpp -o main.o 
+[2/3] /usr/local/cuda-13.2/bin/nvcc -MD -MF cuda.cuda.o.d -DTORCH_EXTENSION_NAME=heteroserve_paged_attn_prefill -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_120,code=sm_120 -gencode=arch=compute_121,code=sm_121 --compiler-options '-fPIC' -O3 --use_fast_math -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_paged_attn_prefill/cuda.cu -o cuda.cuda.o 
+[3/3] c++ main.o cuda.cuda.o -shared -L/home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/lib -lc10 -lc10_cuda -ltorch_cpu -ltorch_cuda -ltorch -ltorch_python -L/usr/local/cuda-13.2/lib64 -lcudart -o heteroserve_paged_attn_prefill.so
+prefill kernel: ready
+[1/3] c++ -MMD -MF main.o.d -DTORCH_EXTENSION_NAME=heteroserve_prefill_wmma -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -fPIC -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_prefill_wmma/main.cpp -o main.o 
+[2/3] /usr/local/cuda-13.2/bin/nvcc -MD -MF cuda.cuda.o.d -DTORCH_EXTENSION_NAME=heteroserve_prefill_wmma -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include -isystem /home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -isystem /usr/local/cuda-13.2/include -isystem /home/mahesh54/miniforge3/envs/gb10/include/python3.12 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_120,code=sm_120 -gencode=arch=compute_121,code=sm_121 --compiler-options '-fPIC' -O3 --use_fast_math -std=c++20 -c /home/mahesh54/.cache/torch_extensions/py312_cu130/heteroserve_prefill_wmma/cuda.cu -o cuda.cuda.o 
+[3/3] c++ main.o cuda.cuda.o -shared -L/home/mahesh54/miniforge3/envs/gb10/lib/python3.12/site-packages/torch/lib -lc10 -lc10_cuda -ltorch_cpu -ltorch_cuda -ltorch -ltorch_python -L/usr/local/cuda-13.2/lib64 -lcudart -o heteroserve_prefill_wmma.so
+WMMA kernel   : ready
+==========================================================================
+
+path                                per call   speedup   correctness
+--------------------------------------------------------------------
+gather + dense causal              14768.3us     1.00x   ok (0.0e+00)
+prefill kernel (scalar fused)      11269.1us     1.31x   ok (1.8e-06)
+prefill kernel (tensor cores)       6956.9us     2.12x   ok (2.7e-04)
+
+Prefill is compute-bound, not bandwidth-bound: S query rows reuse the
+same cache reads, so the win is deleting the gather and then doing the
+arithmetic on tensor cores -- which is why WMMA belongs here and not in
+decode, where compute throughput measured 11%.
