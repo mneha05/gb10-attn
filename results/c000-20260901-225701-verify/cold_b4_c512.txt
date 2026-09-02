@@ -1,0 +1,22 @@
+==========================================================================
+device : NVIDIA GB10  (132.9 GB, 48 SMs, sm_121)
+peak BW: 273 GB/s  [vendor spec (clock is already the effective rate)]
+v1 kernel: cuda
+v2 kernel: ready
+v3 kernel: ready
+==========================================================================
+
+model=gpt2  batch=4  context=512  dtype=float16  one layer
+minimum traffic per call: 6.3 MB (K and V, read once each)
+cold cache: 4 disjoint KV regions in rotation (25 MB footprint) -- reads should miss L2
+
+path                               per call  speedup     GB/s  % peak   correctness
+-----------------------------------------------------------------------------------
+gather + dense attention            536.1us    1.00x    11.7    4.3%   ok (0.0e+00)
+gather + PyTorch SDPA               478.8us    1.12x    13.1    4.8%   ok (3.6e-07)
+v1 kernel (naive fused)             179.9us    2.98x    35.0   12.8%   ok (3.3e-07)
+v2 kernel (online softmax)          377.9us    1.42x    16.6    6.1%   ok (4.5e-07)
+v3 kernel (16-way split)             30.5us   17.59x   206.4   75.6%   ok (1.9e-07)
+
+Attention decode is bandwidth bound, so '% peak' is the number that
+matters -- a kernel at 80% of peak has almost nothing left to win.

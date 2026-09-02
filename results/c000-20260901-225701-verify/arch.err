@@ -1,0 +1,6 @@
+
+GB10 confirmed: real SM 12.1.
+  torch/nvcc target : sm_121
+  TRT-LLM getSMVersion() reports : 120  (deliberate mask)
+  -> any custom op built against TRT-LLM's reported SM will be
+     compiled and dispatched as sm_120. Build ours for BOTH.

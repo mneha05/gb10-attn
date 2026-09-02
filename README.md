@@ -1,80 +1,156 @@
-# gb10-attn — paged attention on GB10 (SM 12.1)
+# gb10-attn — paged attention on NVIDIA GB10 (SM 12.1)
 
-Porting the `hetero-serve` paged-attention kernels from Turing (sm_75) to
-GB10 (sm_121), and characterizing what TensorRT-LLM actually achieves against
-GB10's 273 GB/s memory bandwidth.
+A measured characterization of paged-attention decode on GB10 (DGX Spark class,
+sm_121, unified LPDDR5X), plus two bugs the port surfaced.
 
-## Status
+All numbers below were produced on Purdue RCAC `rowdy`, partition `gb10`, node
+`c000`/`c001`, and the raw artifacts are committed under [results/](results/).
 
-| phase | state |
-|---|---|
-| 0. extract kernels from hetero-serve into standalone TUs | **done** |
-| 1. characterize stock TRT-LLM decode roofline | harness written, **not yet run** |
-| 2. port kernels to SM121 | static analysis **done**, build **not yet attempted** |
-| 3. integrate as TRT-LLM custom op + head-to-head | not started |
-| 4. upstream findings | one candidate identified, unverified |
+## Headline
 
-**No GB10 measurement has been taken yet.** Every number in this repo will be
-labelled with the node and commit that produced it; there are currently none.
+**The v3 context-split (FlashDecoding) kernel sustains 76–81% of GB10's
+273 GB/s memory bandwidth**, 9–17× PyTorch SDPA on the same paged layout.
+Peak observed: 221.8 GB/s (81.2% of peak) at a 201 MB working set.
+
+That number is lower than the first run reported, and the difference is the
+interesting part.
+
+## Two bugs found by moving Turing code to Blackwell
+
+### 1. The roofline denominator was 2× too large
+
+`peak_bandwidth_gbs()` computed `clock × 2 × width / 8`. That is correct on the
+T4 this code grew up on and wrong on GB10:
+
+| part | memory | reported clock | correct formula | peak |
+|---|---|---|---|---|
+| Tesla T4 | GDDR6 | 5001 MHz | clock **× 2** × 256/8 | 320 GB/s |
+| NVIDIA GB10 | LPDDR5X | 8533 MHz | clock × 256/8 | **273 GB/s** |
+
+`cudaDevAttrMemoryClockRate` reports a clock needing the DDR doubling on GDDR6,
+but already reports the *effective transfer rate* on LPDDR5X. Nothing in the API
+distinguishes them. The old formula invented a 546 GB/s bus, so a kernel at 84%
+of bandwidth reported as 42%. Confirmed on-device: the probe emits
+`peak_GBs_no_double: 273.1` against NVIDIA's published 273 GB/s.
+
+Fixed upstream in `hetero-serve` — prefer the vendor figure for known parts,
+fall back to the old formula for unknown ones, and always return the provenance.
+
+### 2. The benchmark was timing L2, not DRAM
+
+GB10's L2 is **24.0 MiB**. The benchmark re-read one KV region 50 times, so
+after the first iteration everything hit cache. The tell was arithmetic:
+
+```
+batch=4  ctx=2048   working set 25.2 MB (= 1.00 x L2)   459.0 GB/s = 168% of peak
+```
+
+168% of a 273 GB/s bus is not a measurement. Inflation peaked exactly where the
+working set matched L2 capacity, and vanished above ~4× L2.
+
+`--cold-pools N` now allocates N disjoint KV regions and rotates the block table
+through them while timing, so a region is evicted before it is read again.
+
+| working set | ÷ L2 | hot (1 region) | cold (4 regions) |
+|---|---|---|---|
+| 1.6 MB | 0.06 | 72.7 (26.6%) | 72.6 (26.6%) |
+| 6.3 MB | 0.25 | 284.0 (104%) | 182.7 (66.9%) |
+| 6.3 MB | 0.25 | 294.9 (108%) | 206.4 (75.6%) |
+| 25.2 MB | 1.00 | 459.0 (168%) | 208.8 (76.5%) |
+| 25.2 MB | 1.00 | 408.7 (150%) | 215.7 (79.0%) |
+| 100.7 MB | 4.00 | 216.9 (79.4%) | — |
+| 201.3 MB | 8.00 | 221.8 (81.2%) | — |
+
+The validation that matters: cold small-working-set numbers (76–79%) agree with
+the large working sets that were *naturally* cold anyway (78–81%). Two
+independent routes to the same answer.
+
+## An int32 overflow in the KV pool
+
+At larger shapes the allocator faults with `CUDA error: an illegal memory
+access` — inside `write_kv`, before any attention kernel launches.
+
+The trigger is not batch or context. The pool is one contiguous
+`[n_layer, 2, num_blocks, block_size, H, D]` tensor, and the fault appears
+exactly when its **element count crosses 2³¹**. For gpt2 geometry each block
+contributes 294,912 elements, so the limit is 7,282 blocks.
+
+Predicted vs observed across a 20-point sweep: **20/20, no mismatches.**
+
+| | blocks | elements | |
+|---|---|---|---|
+| largest passing | 6,528 (b=96, ctx=1024) | 1,925,185,536 | < 2³¹ |
+| — | — | **2,147,483,647** | int32 max |
+| smallest failing | 8,448 (b=64, ctx=2048) | 2,491,416,576 | > 2³¹ |
+
+Mechanism: `pool[layer, 0]` for a late layer sits at a storage offset beyond 2³¹
+*elements* (layer 11 begins 2.28 G elements in), so any int32 offset arithmetic
+wraps. Reproducer: [harness/repro_crash.py](harness/repro_crash.py) (`--bisect`).
+Not yet fixed — the fix is to allocate per-layer tensors rather than one pool.
+
+## SM121 vs SM120 dispatch
+
+[docs/sm121-dispatch.md](docs/sm121-dispatch.md), verified against
+TensorRT-LLM `870d460c` and confirmed on hardware. TRT-LLM masks 12.1 → 12.0 in
+three independent layers: the defaulted `getSMVersion(queryRealSmArch=false)`,
+a second normalization inside `getXMMAKernelsV2()`, and an `-arch=sm_120f`
+family target in the XQA JIT. Consequence: `mSM` is never 121 on a GB10, so
+every `mSM == kSM_121` test is unreachable — though all are redundant
+`||` disjuncts, so behaviour is correct and this is dead code, not a bug.
+
+Stock PyTorch reaches the same place independently: `libtorch_cuda.so` carries
+476 sm_120 cubins, exactly 1 sm_121, and **no PTX at all**, so GB10 runs on
+sm_120 cubins via minor-version binary compatibility. (That one sm_121 cubin is
+13.3 MB / 360 kernels, of which 260 are 256-byte empty stubs left by
+`enable_2x_kernel_for_sm89` / `enable_3x_kernel_for_sm9x` guards.)
+
+## What did *not* need porting
+
+Nothing. All five kernels compiled and ran correctly on sm_121 with no source
+changes, at `-gencode arch=compute_120,code=sm_120 -gencode
+arch=compute_121,code=sm_121`. They use only warp shuffles, `__expf`, WMMA and
+dynamic shared memory — no inline PTX, no `mma.sync`, no `cp.async`, no
+`ldmatrix`, no cooperative groups, nothing cluster-dependent (which GB10 lacks).
+The "port" was a non-event; the measurement was where the work turned out to be.
 
 ## Layout
 
 ```
-kernels/     five paged-attention kernels as standalone .cu/.h
-             (extracted verbatim from hetero-serve by tools/extract_kernels.py)
-tools/       extract_kernels.py -- re-run to re-sync from upstream
-harness/     probe_arch.py   what SM does each layer report?
-             gb10_burst.sh   one allocation, one command, all artifacts
-docs/        sm121-dispatch.md  source-verified TRT-LLM SM121 dispatch analysis
-results/     one directory per allocation, committed as evidence
+kernels/   five paged-attention kernels as standalone .cu/.h, extracted
+           verbatim from hetero-serve by tools/extract_kernels.py
+harness/   probe_arch.py     what arch/L2/bandwidth does each layer report
+           repro_crash.py    minimal int32-overflow reproducer (--bisect)
+           gb10_burst.sh     build + correctness + sweep + ncu, time-boxed
+           gb10*.sbatch      batch forms (preferred over holding a node)
+docs/      sm121-dispatch.md            TRT-LLM SM121 handling, source-verified
+           rcac-ticket-gpu-counters.md  ready-to-send ERR_NVGPUCTRPERM ticket
+results/   one directory per job, committed as evidence
 ```
 
-## The kernels
+## Reproducing on rowdy
 
-Extracted from `github.com/mneha05/hetero-serve`, where they live as raw
-strings compiled at runtime by `torch.utils.cpp_extension.load_inline`.
-
-| file | what it is | port risk |
-|---|---|---|
-| `paged_attn_v1` | naive fused; scores in shared mem, tree reduction | low |
-| `paged_attn_v2` | online softmax, one warp per (seq, head), shuffles | low |
-| `paged_attn_v3` | v2 + context split (FlashDecoding) | low |
-| `paged_attn_prefill` | causal paged prefill, S query tokens | low |
-| `paged_attn_wmma` | WMMA tensor-core prefill, 16×16×16 fragments | **medium** |
-
-Portability scan (see `docs/`): no inline PTX, no `mma.sync`, no `cp.async`, no
-`ldmatrix`, no cooperative groups, no `__CUDA_ARCH__` guards. v1/v2/v3/prefill
-use only warp shuffles, `__expf`, and dynamic shared memory — all stable from
-sm_75 through sm_121. The WMMA prefill is the only one carrying a
-hardware-generation assumption (`sm_75`'s 48 KB shared budget) and is the one
-place a Blackwell shared-memory carveout question arises.
-
-Upstream passed no `-arch`/`-gencode`; `load_inline` inferred the target from
-the live device. On GB10 that inference is exactly the thing under study, so the
-port makes it explicit.
-
-## Running on rowdy
-
-The login node has no GPU, no CUDA, no `nvidia-smi` — that is expected and does
-not mean the hardware is unreachable. Get a compute node first:
+The login node has no GPU and no CUDA — expected, not a problem:
 
 ```bash
-sinteractive -A mithuna -p gb10 -c 20 --gres=gpu:1 -t 30:00
-./harness/gb10_burst.sh
+sbatch harness/gb10_verify.sbatch      # queues, runs, releases itself
 ```
 
-Allocations are 30 minutes, so the workflow is deliberately batch-shaped: all
-editing and analysis happens off the node, and the node is only held for
-compile-run-profile bursts. `gb10_burst.sh` time-boxes each phase and writes
-everything to `results/<host>-<stamp>/` so you can collect and release.
+Two things that will silently ruin a run:
 
-GB10 is Grace-based **aarch64**. Anything pip-installed or pulled from NGC must
-be the aarch64/sbsa variant; an x86 wheel or container will not run.
+- **Use CUDA 13.2.** `/usr/local/cuda-13.2` is the only toolkit on rowdy that
+  can target sm_121 at all; the Lmod `cuda/12.4|12.5|12.8` modules stop at
+  sm_120 and will mis-target without saying so.
+- **It is aarch64.** Anything pip-installed or pulled from NGC must be the
+  aarch64/sbsa variant.
 
-## Prior work
+## Known gaps
 
-The Turing baseline — including the Nsight finding that v2 was occupancy-starved
-at 0.1 waves/SM, which is what motivated v3's context split — lives in
-`hetero-serve`. Its `scripts/bench_kernel.py` already reports achieved GB/s
-against device peak rather than a speedup ratio, and that is the metric carried
-forward here.
+- **Nsight Compute is blocked** by `ERR_NVGPUCTRPERM` — a cluster driver
+  setting, not an sm_121 incompatibility (Nsight connects to the device fine).
+  Ticket drafted in `docs/`. Until it is granted there is no occupancy or
+  DRAM-counter attribution, only wall-clock bandwidth.
+- **No TensorRT-LLM comparison yet.** Everything here is these kernels vs
+  PyTorch, not vs TRT-LLM. An aarch64 TRT-LLM container is staged in scratch;
+  serving and NVFP4/FP8 characterization are not done.
+- The int32 pool overflow is diagnosed but not fixed.
+- fp16 only, one layer, gpt2 geometry.

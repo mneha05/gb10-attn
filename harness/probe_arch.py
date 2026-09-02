@@ -72,15 +72,24 @@ def probe_torch() -> dict:
         # L2 matters as much as peak bandwidth here: if a benchmark's working
         # set fits in L2, its "GB/s" is a cache number, not a DRAM number.
         if not d.get("l2_cache_size"):
-            try:
-                from cuda import cudart
-                err, v = cudart.cudaDeviceGetAttribute(
-                    cudart.cudaDeviceAttr.cudaDevAttrL2CacheSize, 0)
-                if int(err) == 0 and v:
-                    d["l2_cache_size"] = int(v)
-                    d["l2_cache_source"] = "cudaDeviceGetAttribute"
-            except Exception as exc:
-                d["l2_cache_error"] = str(exc)
+            # cuda-python moved this: 13.x exposes cuda.bindings.runtime, older
+            # releases had cuda.cudart. Try both before giving up.
+            errs = []
+            for mod in ("cuda.bindings.runtime", "cuda.cudart"):
+                try:
+                    import importlib
+                    cudart = importlib.import_module(mod)
+                    err, v = cudart.cudaDeviceGetAttribute(
+                        cudart.cudaDeviceAttr.cudaDevAttrL2CacheSize, 0)
+                    if int(err) == 0 and v:
+                        d["l2_cache_size"] = int(v)
+                        d["l2_cache_source"] = mod
+                        break
+                    errs.append(f"{mod}: rc={int(err)}")
+                except Exception as exc:
+                    errs.append(f"{mod}: {type(exc).__name__}")
+            if not d.get("l2_cache_size"):
+                d["l2_cache_error"] = "; ".join(errs)
         if d.get("l2_cache_size"):
             d["l2_cache_MiB"] = round(d["l2_cache_size"] / 2**20, 2)
 

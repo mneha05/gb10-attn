@@ -1,0 +1,31 @@
+CUDA_LAUNCH_BLOCKING=1
+
+=== sweep: which (batch, context) fault? ===
+  b=  16 ctx=  512  ok
+  b=  16 ctx= 1024  ok
+  b=  16 ctx= 1536  ok
+  b=  16 ctx= 2048  ok
+  b=  32 ctx=  512  ok
+  b=  32 ctx= 1024  ok
+  b=  32 ctx= 1536  ok
+  b=  32 ctx= 2048  ok
+  b=  64 ctx=  512  ok
+  b=  64 ctx= 1024  ok
+  b=  64 ctx= 1536  ok
+  b=  64 ctx= 2048  FAULT
+  b=  96 ctx=  512  ok
+  b=  96 ctx= 1024  ok
+  b=  96 ctx= 1536  FAULT
+  b=  96 ctx= 2048  FAULT
+  b= 128 ctx=  512  ok
+  b= 128 ctx= 1024  FAULT
+  b= 128 ctx= 1536  FAULT
+  b= 128 ctx= 2048  FAULT
+
+=== smallest faulting shape ===
+  b=64 ctx=2048  (blocks=8448)
+
+=== that shape's output ===
+CUDA_LAUNCH_BLOCKING=1
+  b=64 ctx=2048 blocks=8448 pool=8448 blk=16 ... FAULT: AcceleratorError: CUDA error: an illegal memory access was encountered
+
