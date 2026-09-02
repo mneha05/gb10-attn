@@ -1,0 +1,7 @@
+# rowdy is Linux/aarch64; CRLF in a shell script breaks the shebang
+# ("bad interpreter: /usr/bin/env bash^M"). Force LF for everything we execute.
+*.sh   text eol=lf
+*.py   text eol=lf
+*.cu   text eol=lf
+*.h    text eol=lf
+*.md   text eol=lf
