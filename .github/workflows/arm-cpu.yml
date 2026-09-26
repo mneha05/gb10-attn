@@ -27,6 +27,7 @@ jobs:
           bash -n arm_cpu/tools/profile_coresight.sh
           bash -n arm_cpu/tools/llvm_mca.sh
           bash -n arm_cpu/kleidiai/build_kleidiai.sh
+          bash -n arm_cpu/gb10_arm_bench.sbatch
 
   aarch64-neon:
     runs-on: ubuntu-24.04
