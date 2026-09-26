@@ -18,6 +18,29 @@ Full writeup: [docs/REPORT.md](docs/REPORT.md).
 That number is lower than the first run reported, and the difference is the
 interesting part.
 
+## Arm CPU optimization lane
+
+The same GB10 node also exposes a 20-core Arm CPU (10 Cortex-X925 + 10
+Cortex-A725), so this repo now includes a CPU-side attention lab under
+[`arm_cpu/`](arm_cpu/README.md).
+
+Implemented and CI-validated:
+
+- scalar FP32 attention-score reference,
+- **Neon / Advanced SIMD** Q·K dot-product kernel,
+- vector-length-agnostic **SVE** kernel,
+- Linux HWCAP dispatch for Neon, DotProd, SVE/SVE2 and **SME/SME2** capability,
+- AArch64 cross-build + QEMU correctness checks,
+- object-code checks proving Neon and SVE instructions are emitted,
+- `perf`, eBPF/bpftrace, **CoreSight ETM**, and LLVM/`llvm-mca` profiling harnesses,
+- optional **KleidiAI** build lane,
+- **ExecuTorch XNNPACK** attention export for Arm CPU / Android experiments,
+- an RCAC `gb10` Slurm job that records CPU provenance and benchmark CSVs.
+
+The Arm CI proves correctness and instruction generation. It does **not**
+invent GB10 CPU speedup numbers: those are only added after the Slurm job is
+actually run on the hardware.
+
 ## Two bugs found by moving Turing code to Blackwell
 
 ### 1. The roofline denominator was 2× too large
