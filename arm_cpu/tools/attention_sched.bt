@@ -1,0 +1,24 @@
+#!/usr/bin/env bpftrace
+
+BEGIN
+{
+  printf("Tracing scheduler activity for arm_attn_bench. Ctrl-C to stop.\n");
+}
+
+tracepoint:sched:sched_switch
+/args.prev_comm == "arm_attn_bench"/
+{
+  @switch_out[args.prev_pid] = count();
+}
+
+tracepoint:sched:sched_wakeup
+/args.comm == "arm_attn_bench"/
+{
+  @wakeups[args.pid] = count();
+}
+
+interval:s:2
+{
+  print(@switch_out);
+  print(@wakeups);
+}
