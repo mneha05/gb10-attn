@@ -1,0 +1,68 @@
+name: Arm CPU lane
+
+on:
+  push:
+    paths:
+      - "arm_cpu/**"
+      - ".github/workflows/arm-cpu.yml"
+  pull_request:
+    paths:
+      - "arm_cpu/**"
+      - ".github/workflows/arm-cpu.yml"
+
+jobs:
+  host-reference:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - run: cmake -S arm_cpu -B build-host -G Ninja -DGB10_ARM_ENABLE_SVE=OFF
+      - run: cmake --build build-host
+      - run: ctest --test-dir build-host --output-on-failure
+      - run: ./build-host/arm_attn_bench --backend scalar --tokens 128 --dim 128 --iters 4
+      - run: python3 -m py_compile arm_cpu/executorch/export_attention_probe.py
+      - run: |
+          bash -n arm_cpu/tools/cpu_probe.sh
+          bash -n arm_cpu/tools/profile_perf.sh
+          bash -n arm_cpu/tools/profile_coresight.sh
+          bash -n arm_cpu/tools/llvm_mca.sh
+          bash -n arm_cpu/kleidiai/build_kleidiai.sh
+
+  aarch64-neon:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install AArch64 cross toolchain and QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             ninja-build             g++-aarch64-linux-gnu             binutils-aarch64-linux-gnu             qemu-user
+      - name: Cross-build Neon binary
+        run: |
+          cmake -S arm_cpu -B build-arm -G Ninja             -DCMAKE_SYSTEM_NAME=Linux             -DCMAKE_SYSTEM_PROCESSOR=aarch64             -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++             -DGB10_ARM_ENABLE_SVE=OFF
+          cmake --build build-arm
+      - name: Execute Neon backend under QEMU
+        env:
+          QEMU_LD_PREFIX: /usr/aarch64-linux-gnu
+          QEMU_CPU: max
+        run: |
+          qemu-aarch64 ./build-arm/arm_attn_bench             --backend neon --tokens 128 --dim 128 --iters 4
+      - name: Verify Advanced SIMD instructions were emitted
+        run: |
+          aarch64-linux-gnu-objdump -d             build-arm/CMakeFiles/gb10_arm.dir/src/neon.cpp.o > /tmp/neon.asm
+          grep -Eq "fmla|fmul" /tmp/neon.asm
+
+  aarch64-sve-compile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y             ninja-build             g++-aarch64-linux-gnu             binutils-aarch64-linux-gnu
+      - name: Cross-build SVE2 object
+        run: |
+          cmake -S arm_cpu -B build-sve -G Ninja             -DCMAKE_SYSTEM_NAME=Linux             -DCMAKE_SYSTEM_PROCESSOR=aarch64             -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++             -DGB10_ARM_ENABLE_SVE=ON
+          cmake --build build-sve
+      - name: Verify SVE instructions were emitted
+        run: |
+          aarch64-linux-gnu-objdump -d             build-sve/CMakeFiles/gb10_arm.dir/src/sve.cpp.o > /tmp/sve.asm
+          grep -Eq "whilelo|ptrue|ld1w|fmla" /tmp/sve.asm
