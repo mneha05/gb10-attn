@@ -16,6 +16,14 @@ add_library(gb10_arm STATIC
 target_include_directories(gb10_arm PUBLIC include)
 target_compile_options(gb10_arm PRIVATE -O3 -Wall -Wextra -Wpedantic)
 
+# Keep the reference backend genuinely scalar so the Neon/SVE speedup is
+# measured against scalar code rather than compiler auto-vectorization.
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set_source_files_properties(src/scalar.cpp PROPERTIES
+    COMPILE_OPTIONS "-fno-tree-vectorize"
+  )
+endif()
+
 string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" GB10_PROCESSOR)
 if(GB10_PROCESSOR MATCHES "aarch64|arm64")
   set_source_files_properties(src/neon.cpp PROPERTIES
