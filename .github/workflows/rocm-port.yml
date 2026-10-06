@@ -1,0 +1,47 @@
+name: ROCm + distributed training verification
+
+on:
+  push:
+    paths:
+      - "rocm/**"
+      - "distributed_train/**"
+      - ".github/workflows/rocm-port.yml"
+  pull_request:
+    paths:
+      - "rocm/**"
+      - "distributed_train/**"
+      - ".github/workflows/rocm-port.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  hip-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile HIP kernel with AMD ROCm toolchain
+        run: |
+          docker run --rm \
+            -v "$PWD:/src" -w /src \
+            rocm/dev-ubuntu-22.04:7.2.4 \
+            bash -lc 'AMD_GPU_ARCH=gfx942 bash rocm/build_rocm.sh /tmp/rocm-build && /tmp/rocm-build/paged_attn_v1_hip'
+
+  ddp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install CPU PyTorch
+        run: pip install --index-url https://download.pytorch.org/whl/cpu torch
+      - name: Two-process distributed training
+        run: |
+          NPROC_PER_NODE=2 STEPS=40 bash distributed_train/run_ddp.sh | tee ddp-result.txt
+          grep -q '"world_size": 2' ddp-result.txt
+          grep -q '"parameter_checksum_spread": 0.0' ddp-result.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ddp-smoke-result
+          path: ddp-result.txt
