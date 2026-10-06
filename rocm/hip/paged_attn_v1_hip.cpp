@@ -189,6 +189,11 @@ int main() {
   for(size_t i=0;i<got.size();++i) max_abs=std::max(max_abs,std::fabs(got[i]-ref[i]));
   std::printf("ROCm HIP paged-attention self-test max_abs=%g\n",max_abs);
 
-  hipFree(dq); hipFree(dk); hipFree(dv); hipFree(dout); hipFree(dbt); hipFree(dctx);
+  HIP_CHECK(hipFree(dq));
+  HIP_CHECK(hipFree(dk));
+  HIP_CHECK(hipFree(dv));
+  HIP_CHECK(hipFree(dout));
+  HIP_CHECK(hipFree(dbt));
+  HIP_CHECK(hipFree(dctx));
   return max_abs < 3e-4f ? 0 : 1;
 }
