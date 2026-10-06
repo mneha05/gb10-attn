@@ -18,6 +18,21 @@ Full writeup: [docs/REPORT.md](docs/REPORT.md).
 That number is lower than the first run reported, and the difference is the
 interesting part.
 
+## AMD ROCm + distributed training lane
+
+This repo now includes an AMD portability and training lane under [`rocm/`](rocm/) and [`distributed_train/`](distributed_train/).
+
+Verified in GitHub Actions run [#37526744469](https://github.com/mneha05/gb10-attn/actions/runs/37526744469):
+
+- AMD's ROCm 7.2.4 `hipcc` compiled the standalone HIP port of `paged_attn_v1` for **gfx942**.
+- The CI runner did not expose an AMD GPU, so the HIP binary reports a compile-only smoke result there; AMD hardware runtime/performance remains a separate bare-metal validation step.
+- A real **2-process PyTorch DDP** training job completed with `world_size=2`, Gloo backend on CPU CI, loss decreasing from **1.4313 to 0.3015**, and **0.0 parameter checksum spread** between ranks.
+- The same DDP code automatically selects the NCCL backend when a GPU runtime is present; on ROCm PyTorch that routes to RCCL.
+- `rocm/baremetal_probe.sh` captures CPU/NUMA, PCIe, huge pages, IOMMU, `hipconfig`, `rocminfo`, and `rocm-smi` provenance.
+- Slurm launchers are included for a single-node AMD HIP kernel validation and a 4-GPU ROCm DDP run.
+
+This is evidence of hands-on **HIP/ROCm porting** and **distributed-training mechanics**. It does not claim AMD hardware benchmark numbers until the Slurm lane is run on an actual AMD GPU node.
+
 ## Arm CPU optimization lane
 
 The same GB10 node also exposes a 20-core Arm CPU (10 Cortex-X925 + 10
